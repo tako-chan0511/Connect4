@@ -44,54 +44,70 @@ import Cell from './Cell.vue';
 type CellValue = 'R' | 'Y' | null;
 
 const COLUMNS = 7;
-const ROWS = 6;
-const cols = Array.from({ length: COLUMNS }, (_, i) => i);
-const rows = Array.from({ length: ROWS }, (_, i) => i);
+const ROWS    = 6;
+const cols    = Array.from({ length: COLUMNS }, (_, i) => i);
+const rows    = Array.from({ length: ROWS    }, (_, i) => i);
 
-// 盤面＋手番＋勝者＋履歴
-const board = ref<CellValue[][]>(
-  Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null))
-);
+// 盤面＋手番＋勝者
+const board       = ref<CellValue[][]>( Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null)) );
 const currentDisc = ref<CellValue>('R');
-const winner = ref<CellValue | 'Draw' | null>(null);
-const history = ref<CellValue[][][]>([]);
+const winner      = ref<CellValue|'Draw'|null>(null);
 
-// 深いコピーユーティリティ
+// 「盤面と手番」を丸ごと保存する履歴
+interface Snapshot {
+  board: CellValue[][];
+  turn: CellValue;
+}
+const history = ref<Snapshot[]>([]);
+
+// 盤面を深くコピー
 function cloneBoard(b: CellValue[][]): CellValue[][] {
   return b.map(row => [...row]);
 }
 
-// 初期化
+// 今の状態を履歴にプッシュ
+function pushHistory() {
+  history.value.push({
+    board: cloneBoard(board.value),
+    turn: currentDisc.value
+  });
+}
+
+// リセット（初期化）
 function reset() {
   board.value = Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null));
   currentDisc.value = 'R';
   winner.value = null;
-  history.value = [ cloneBoard(board.value) ];
+  history.value = [];
+  pushHistory();
 }
 reset();
 
 // Undo
 function undo() {
   if (history.value.length <= 1) return;
-  history.value.pop();
-  board.value = cloneBoard(history.value[history.value.length - 1]);
-  // 手番を1手戻す
-  currentDisc.value = currentDisc.value === 'R' ? 'Y' : 'R';
+  history.value.pop(); // 直前状態を消す
+  const snap = history.value[history.value.length - 1];
+  board.value = cloneBoard(snap.board);
+  currentDisc.value = snap.turn;
   winner.value = null;
 }
 
-// コマを落とす＆履歴保存＆勝敗判定＆手番切り替え
+// 実際に一手を打つ
 function doMove(color: CellValue, col: number): boolean {
+  // 空きマスに落とす
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board.value[r][col] === null) {
-      history.value.push(cloneBoard(board.value));
+      pushHistory();
       board.value[r][col] = color;
-      // 勝敗チェック
+
+      // 勝敗判定
       if (hasWon(board.value, color)) {
         winner.value = color;
       } else if (validColumns(board.value).length === 0) {
         winner.value = 'Draw';
       } else {
+        // 手番交代
         currentDisc.value = color === 'R' ? 'Y' : 'R';
       }
       return true;
@@ -100,13 +116,13 @@ function doMove(color: CellValue, col: number): boolean {
   return false;
 }
 
-// 人間（🔴）の一手
+// プレイヤーの手
 function dropDisc(col: number) {
   if (winner.value || currentDisc.value !== 'R') return;
   doMove('R', col);
 }
 
-// CPU（🟡）の一手
+// CPU の手番
 watch(currentDisc, async disc => {
   if (disc === 'Y' && !winner.value) {
     await nextTick();
@@ -115,7 +131,7 @@ watch(currentDisc, async disc => {
   }
 });
 
-// 置ける列リスト
+// 有効な列
 function validColumns(b: CellValue[][]): number[] {
   const out: number[] = [];
   for (let c = 0; c < COLUMNS; c++) {
@@ -124,7 +140,7 @@ function validColumns(b: CellValue[][]): number[] {
   return out;
 }
 
-// 4連判定
+// ４連判定
 function hasWon(b: CellValue[][], v: CellValue): boolean {
   if (!v) return false;
   const dirs = [
@@ -142,8 +158,7 @@ function hasWon(b: CellValue[][], v: CellValue): boolean {
         ) {
           cnt++;
           if (cnt === 4) return true;
-          ny += dy;
-          nx += dx;
+          ny += dy; nx += dx;
         }
       }
     }
@@ -151,13 +166,8 @@ function hasWon(b: CellValue[][], v: CellValue): boolean {
   return false;
 }
 
-// --- ミニマックス & 評価関数 ---
-
-function scorePosition(b: CellValue[][], ai: CellValue): number {
-  // 評価ロジックを実装してください
-  return 0;
-}
-
+// ミニマックス（詳細は省略）
+function scorePosition(_b: CellValue[][], _ai: CellValue): number { return 0; }
 function minimax(
   b: CellValue[][],
   depth: number,
@@ -166,18 +176,21 @@ function minimax(
   maximizing: boolean,
   ai: CellValue
 ): number {
-  // 終端 or 勝敗判定
-  const terminal = hasWon(b, ai) || hasWon(b, ai === 'R' ? 'Y' : 'R') || validColumns(b).length === 0;
+  const terminal =
+    hasWon(b, ai) ||
+    hasWon(b, ai === 'R' ? 'Y' : 'R') ||
+    validColumns(b).length === 0;
+
   if (depth === 0 || terminal) {
     if (hasWon(b, ai)) return Infinity;
     if (hasWon(b, ai === 'R' ? 'Y' : 'R')) return -Infinity;
     return scorePosition(b, ai);
   }
+
   if (maximizing) {
     let value = -Infinity;
     for (const col of validColumns(b)) {
       const nb = cloneBoard(b);
-      // クローン盤にだけ駒を置く
       for (let r = ROWS - 1; r >= 0; r--) {
         if (nb[r][col] === null) { nb[r][col] = ai; break; }
       }
@@ -208,7 +221,7 @@ function computeBestMove(
   depth: number
 ): number {
   let bestScore = -Infinity;
-  let bestCol = validColumns(b)[0];
+  let bestCol   = validColumns(b)[0];
   for (const col of validColumns(b)) {
     const nb = cloneBoard(b);
     for (let r = ROWS - 1; r >= 0; r--) {
@@ -217,7 +230,7 @@ function computeBestMove(
     const sc = minimax(nb, depth - 1, -Infinity, Infinity, false, ai);
     if (sc > bestScore) {
       bestScore = sc;
-      bestCol = col;
+      bestCol   = col;
     }
   }
   return bestCol;
@@ -232,12 +245,16 @@ function computeBestMove(
 .board {
   display: flex;
   justify-content: center;
-  margin-top: 1em;
+  margin: 1em auto;
+  padding: 8px;
+  background-color: #0055aa;
+  border-radius: 8px;
 }
 .column {
   display: flex;
   flex-direction: column-reverse;
   cursor: pointer;
+  margin: 0;
 }
 .overlay {
   position: absolute;
