@@ -1,8 +1,12 @@
+// vite.config.ts
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// https://vite.dev/config/
-export default defineConfig({
-  base: '/Connect4/',
-  plugins: [vue()],
+export default defineConfig(() => {
+  // Vercel 上では import.meta.env.VERCEL が "1" など truthy
+  const isVercel = Boolean(import.meta.env.VERCEL)
+  return {
+    base: isVercel ? '/' : '/Connect4/',
+    plugins: [vue()],
+  }
 })
