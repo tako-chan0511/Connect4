@@ -9,10 +9,10 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue';
-
 type CellValue = 'R' | 'Y' | null;
-const props = defineProps<{
+
+// defineProps マクロを使って、props.value を直接展開
+const { value } = defineProps<{
   value: CellValue;
 }>();
 </script>
