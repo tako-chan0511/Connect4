@@ -1,27 +1,17 @@
-// vite.config.ts
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-export default defineConfig(({ command, mode }) => {
-  // `mode` は 'development' や 'production'（Vercel では production）
-  // ここで .env や .env.production の内容を読み込み
-  const env = loadEnv(mode, process.cwd(), '')
+// Vercel上では process.env.VERCEL が "1" になります
+const isVercel = !!process.env.VERCEL
 
-  // Vercel 上では process.env.VERCEL に "1" がセットされる
-  const isVercel = env.VERCEL === '1'
-
-  // 開発サーバーでは必ずルート
-  if (command === 'serve') {
-    return {
-      base: '/',
-      plugins: [vue()],
-    }
-  }
-
-  // build 時
+export default defineConfig(({ command }) => {
   return {
-    // Vercel: '/', GitHub Pages: '/Connect4/'
-    base: isVercel ? '/' : '/Connect4/',
+    base:
+      command === 'serve'
+        ? '/'                      // 開発サーバー時は絶対パス
+        : isVercel
+          ? '/'                    // Vercel 本番ビルド時はルート配下
+          : '/Connect4/',          // GitHub Pages 時
     plugins: [vue()],
   }
 })
