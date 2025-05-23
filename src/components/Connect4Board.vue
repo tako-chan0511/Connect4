@@ -16,6 +16,7 @@
         :key="col"
         @click="dropDisc(col)"
       >
+        <!-- rows は ROWS-1 から 0 の降順 -->
         <Cell
           v-for="row in rows"
           :key="row"
@@ -45,15 +46,18 @@ type CellValue = 'R' | 'Y' | null;
 
 const COLUMNS = 7;
 const ROWS    = 6;
-const cols    = Array.from({ length: COLUMNS }, (_, i) => i);
-const rows    = Array.from({ length: ROWS    }, (_, i) => i);
 
-// 盤面＋手番＋勝者
-const board       = ref<CellValue[][]>( Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null)) );
+// 列は 0..COLUMNS-1
+const cols = Array.from({ length: COLUMNS }, (_, i) => i);
+// 行は ROWS-1..0 の降順
+const rows = Array.from({ length: ROWS }, (_, i) => ROWS - 1 - i);
+
+const board       = ref<CellValue[][]>(
+  Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null))
+);
 const currentDisc = ref<CellValue>('R');
-const winner      = ref<CellValue|'Draw'|null>(null);
+const winner      = ref<CellValue | 'Draw' | null>(null);
 
-// 「盤面と手番」を丸ごと保存する履歴
 interface Snapshot {
   board: CellValue[][];
   turn: CellValue;
@@ -65,7 +69,7 @@ function cloneBoard(b: CellValue[][]): CellValue[][] {
   return b.map(row => [...row]);
 }
 
-// 今の状態を履歴にプッシュ
+// 履歴追加
 function pushHistory() {
   history.value.push({
     board: cloneBoard(board.value),
@@ -73,7 +77,7 @@ function pushHistory() {
   });
 }
 
-// リセット（初期化）
+// 初期化
 function reset() {
   board.value = Array.from({ length: ROWS }, () => Array(COLUMNS).fill(null));
   currentDisc.value = 'R';
@@ -86,28 +90,24 @@ reset();
 // Undo
 function undo() {
   if (history.value.length <= 1) return;
-  history.value.pop(); // 直前状態を消す
+  history.value.pop();
   const snap = history.value[history.value.length - 1];
   board.value = cloneBoard(snap.board);
   currentDisc.value = snap.turn;
   winner.value = null;
 }
 
-// 実際に一手を打つ
+// 一手を打つ
 function doMove(color: CellValue, col: number): boolean {
-  // 空きマスに落とす
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board.value[r][col] === null) {
       pushHistory();
       board.value[r][col] = color;
-
-      // 勝敗判定
       if (hasWon(board.value, color)) {
         winner.value = color;
       } else if (validColumns(board.value).length === 0) {
         winner.value = 'Draw';
       } else {
-        // 手番交代
         currentDisc.value = color === 'R' ? 'Y' : 'R';
       }
       return true;
@@ -122,7 +122,7 @@ function dropDisc(col: number) {
   doMove('R', col);
 }
 
-// CPU の手番
+// CPUの手
 watch(currentDisc, async disc => {
   if (disc === 'Y' && !winner.value) {
     await nextTick();
@@ -131,7 +131,7 @@ watch(currentDisc, async disc => {
   }
 });
 
-// 有効な列
+// 空き列のリスト
 function validColumns(b: CellValue[][]): number[] {
   const out: number[] = [];
   for (let c = 0; c < COLUMNS; c++) {
@@ -140,7 +140,7 @@ function validColumns(b: CellValue[][]): number[] {
   return out;
 }
 
-// ４連判定
+// 4連判定
 function hasWon(b: CellValue[][], v: CellValue): boolean {
   if (!v) return false;
   const dirs = [
@@ -158,7 +158,7 @@ function hasWon(b: CellValue[][], v: CellValue): boolean {
         ) {
           cnt++;
           if (cnt === 4) return true;
-          ny += dy; nx += dx;
+          nx += dx; ny += dy;
         }
       }
     }
@@ -166,7 +166,7 @@ function hasWon(b: CellValue[][], v: CellValue): boolean {
   return false;
 }
 
-// ミニマックス（詳細は省略）
+// —— ミニマックス & 簡易評価関数 ——
 function scorePosition(_b: CellValue[][], _ai: CellValue): number { return 0; }
 function minimax(
   b: CellValue[][],
@@ -186,7 +186,6 @@ function minimax(
     if (hasWon(b, ai === 'R' ? 'Y' : 'R')) return -Infinity;
     return scorePosition(b, ai);
   }
-
   if (maximizing) {
     let value = -Infinity;
     for (const col of validColumns(b)) {
@@ -214,7 +213,6 @@ function minimax(
     return value;
   }
 }
-
 function computeBestMove(
   b: CellValue[][],
   ai: CellValue,
@@ -252,24 +250,24 @@ function computeBestMove(
 }
 .column {
   display: flex;
+  /* ★ 下にたまる要 */
   flex-direction: column-reverse;
   cursor: pointer;
-  margin: 0;
 }
 .overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: flex; align-items: center; justify-content: center;
+  display:flex; align-items:center; justify-content:center;
 }
 .message {
-  font-size: 2em;
-  color: white;
-  margin-bottom: 0.5em;
+  font-size:2em;
+  color:white;
+  margin-bottom:0.5em;
 }
 button {
-  margin-left: 0.5em;
-  padding: 0.3em 0.6em;
+  margin-left:0.5em;
+  padding:0.3em 0.6em;
 }
 .red { color: red; }
 .yellow { color: gold; }
