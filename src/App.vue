@@ -2,7 +2,7 @@
   <div id="app">
     <!-- タイトル表示 -->
     <header class="app-header">
-      <h1>Connect4（立体4並べ）</h1>
+      <h1>Connect4（立体4並べ-vue3）</h1>
     </header>
 
     <!-- Connect4 ボードコンポーネント -->
